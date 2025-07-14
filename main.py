@@ -21,11 +21,13 @@ def call_mistral_resume_parser(resume_text):
     llm = Ollama(model="mistral")
 
     prompt = f"""
-You are a professional resume parser. Extract the following details in JSON format from the given resume text:
-- Full Name
-- Total Experience (in years and months)
-- Skills
-- Job History: (Company, Role, Start Date, End Date)(include previous roles also)
+You are a professional resume parser.
+
+From the resume below, extract the following information in JSON format:
+1. Full Name
+2. Total Work Experience (calculate from job start and end dates, do not require explicit mention)
+3. Skills
+4. Job History: List of dictionaries with Company, Role, Start Date, End Date(include previous roles also)
 
 Resume:
 \"\"\"{resume_text}\"\"\"
