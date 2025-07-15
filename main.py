@@ -2,7 +2,7 @@ import streamlit as st
 import fitz  # PyMuPDF
 from langchain.llms import Ollama
 
-# Function to extract text from uploaded PDF
+# Extract text from PDF
 def extract_text_from_pdf(uploaded_file):
     with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
         text = ""
@@ -10,7 +10,7 @@ def extract_text_from_pdf(uploaded_file):
             text += page.get_text()
     return text.strip()
 
-# Function to call Mistral model from Ollama
+# Mistral parsing
 def parse_resume_with_mistral(resume_text):
     llm = Ollama(model="mistral")
     prompt = f"""
@@ -27,7 +27,7 @@ Resume:
     response = llm.invoke(prompt)
     return response
 
-# ✅ Function to extract raw Experience section and hide from UI
+# Extract experience section
 def extract_job_history_section(resume_text):
     stop_headings = [
         'education', 'projects', 'certifications', 'skills',
@@ -59,6 +59,7 @@ def extract_job_history_section(resume_text):
 
     return "❌ Could not find 'Experience' section as a proper heading."
 
+
 # 🚀 Streamlit App
 st.set_page_config(page_title="📄 Resume Parser", layout="centered")
 st.title("📄 AI Resume Parser using Mistral")
@@ -72,7 +73,7 @@ if uploaded_file is not None:
 
     st.success("✅ Resume text extracted!")
 
-    # ✅ Store raw experience section (but don't display)
+    # ✅ Store raw experience section
     st.session_state.raw_experience = extract_job_history_section(resume_text)
 
     # 🧠 Parse with Mistral
@@ -80,9 +81,26 @@ if uploaded_file is not None:
         with st.spinner("Parsing resume with Mistral..."):
             parsed_output = parse_resume_with_mistral(resume_text)
 
-        st.subheader("📋 Parsed Resume Data (JSON)")
-        st.code(parsed_output, language="json")
+        st.session_state.parsed_output = parsed_output  # Store in session
 
-        # (Optional Debug – Print stored experience if needed)
-        # st.subheader("🔒 Hidden Raw Experience Stored in Session")
-        # st.text_area("Raw Experience", st.session_state.raw_experience, height=300)
+# ✅ Show Mistral output if available
+if "parsed_output" in st.session_state:
+    st.subheader("📋 Parsed Resume Data (JSON)")
+    st.code(st.session_state.parsed_output, language="json")
+
+# ✅ Keyword Search — always below parsed result
+if "raw_experience" in st.session_state:
+    st.subheader("🔍 Search Your Keywords in Experience Section")
+    search_input = st.text_input("Enter comma-separated keywords (e.g., Python, Django, ML)")
+
+    if search_input:
+        # Process keywords
+        search_words = [word.strip().lower() for word in search_input.split(",") if word.strip()]
+        experience_text = st.session_state.raw_experience.lower()
+
+        matched_words = [word for word in search_words if word in experience_text]
+
+        if matched_words:
+            st.success(f"✅ Matched Keywords: {', '.join(matched_words)}")
+        else:
+            st.warning("⚠️ No keywords matched in the experience section.")
