@@ -2,7 +2,7 @@ import streamlit as st
 import fitz  # PyMuPDF
 from langchain.llms import Ollama
 
-# Extract text from PDF
+# Function to extract text from uploaded PDF
 def extract_text_from_pdf(uploaded_file):
     with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
         text = ""
@@ -10,7 +10,7 @@ def extract_text_from_pdf(uploaded_file):
             text += page.get_text()
     return text.strip()
 
-# Mistral parsing
+# Function to parse resume with Mistral
 def parse_resume_with_mistral(resume_text):
     llm = Ollama(model="mistral")
     prompt = f"""
@@ -27,25 +27,21 @@ Resume:
     response = llm.invoke(prompt)
     return response
 
-# Extract experience section
-def extract_job_history_section(resume_text):
+# Function to extract experience section only
+def extract_experience_section(resume_text):
     stop_headings = [
         'education', 'projects', 'certifications', 'skills',
         'achievements', 'personal', 'languages', 'contact',
         'summary', 'objective', 'hobbies', 'interests'
     ]
-
     lines = resume_text.splitlines()
     clean_lines = [line.strip() for line in lines if line.strip()]
-    exp_start = None
-    exp_end = None
+    exp_start, exp_end = None, None
 
     for i, line in enumerate(clean_lines):
-        line_lower = line.lower()
-        if line_lower in ['experience', 'work experience', 'professional experience']:
+        if line.lower() in ['experience', 'work experience', 'professional experience']:
             exp_start = i
             break
-
     if exp_start is not None:
         for j in range(exp_start + 1, len(clean_lines)):
             if any(stop in clean_lines[j].lower() for stop in stop_headings):
@@ -53,54 +49,59 @@ def extract_job_history_section(resume_text):
                 break
         if exp_end is None:
             exp_end = len(clean_lines)
+        return "\n".join(clean_lines[exp_start:exp_end]).strip()
+    return ""
 
-        experience_lines = clean_lines[exp_start:exp_end]
-        return "\n".join(experience_lines).strip()
+# App UI
+st.set_page_config(page_title="📄 Multi Resume Parser", layout="wide")
+st.title("📄 Upload Multiple Resumes and Parse as Needed")
 
-    return "❌ Could not find 'Experience' section as a proper heading."
+uploaded_files = st.file_uploader("Upload multiple resume PDFs", type=["pdf"], accept_multiple_files=True)
 
+# 🔍 Input once from user
+search_input = st.text_input("🔍 Enter comma-separated keywords to search in all resumes")
 
-# 🚀 Streamlit App
-st.set_page_config(page_title="📄 Resume Parser", layout="centered")
-st.title("📄 AI Resume Parser using Mistral")
-st.markdown("Upload a resume PDF, and let the AI extract key information.")
+# Main logic after upload
+if uploaded_files:
+    if "all_data" not in st.session_state:
+        st.session_state.all_data = {}
 
-uploaded_file = st.file_uploader("Choose a resume PDF", type=["pdf"])
+    for idx, uploaded_file in enumerate(uploaded_files):
+        file_key = f"resume_{idx}"
 
-if uploaded_file is not None:
-    with st.spinner("Extracting text from resume..."):
-        resume_text = extract_text_from_pdf(uploaded_file)
+        if file_key not in st.session_state.all_data:
+            with st.spinner(f"Reading {uploaded_file.name}..."):
+                text = extract_text_from_pdf(uploaded_file)
+                exp = extract_experience_section(text)
+                st.session_state.all_data[file_key] = {
+                    "name": uploaded_file.name,
+                    "text": text,
+                    "experience": exp,
+                    "parsed": None
+                }
 
-    st.success("✅ Resume text extracted!")
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.write(f"📄 **{uploaded_file.name}**")
+        with col2:
+            if st.button(f"🧠 Parse {uploaded_file.name}", key=f"btn_{idx}"):
+                with st.spinner("Parsing with Mistral..."):
+                    result = parse_resume_with_mistral(st.session_state.all_data[file_key]["text"])
+                    st.session_state.all_data[file_key]["parsed"] = result
 
-    # ✅ Store raw experience section
-    st.session_state.raw_experience = extract_job_history_section(resume_text)
+        # Show parsed JSON if available
+        if st.session_state.all_data[file_key]["parsed"]:
+            st.code(st.session_state.all_data[file_key]["parsed"], language="json")
 
-    # 🧠 Parse with Mistral
-    if st.button("🧠 Parse Resume with Mistral"):
-        with st.spinner("Parsing resume with Mistral..."):
-            parsed_output = parse_resume_with_mistral(resume_text)
-
-        st.session_state.parsed_output = parsed_output  # Store in session
-
-# ✅ Show Mistral output if available
-if "parsed_output" in st.session_state:
-    st.subheader("📋 Parsed Resume Data (JSON)")
-    st.code(st.session_state.parsed_output, language="json")
-
-# ✅ Keyword Search — always below parsed result
-if "raw_experience" in st.session_state:
-    st.subheader("🔍 Search Your Keywords in Experience Section")
-    search_input = st.text_input("Enter comma-separated keywords (e.g., Python, Django, ML)")
-
+    # 🔍 Keyword Search across all resumes
     if search_input:
-        # Process keywords
-        search_words = [word.strip().lower() for word in search_input.split(",") if word.strip()]
-        experience_text = st.session_state.raw_experience.lower()
+        st.markdown("---")
+        st.subheader("🔎 Keyword Match Results")
 
-        matched_words = [word for word in search_words if word in experience_text]
-
-        if matched_words:
-            st.success(f"✅ Matched Keywords: {', '.join(matched_words)}")
-        else:
-            st.warning("⚠️ No keywords matched in the experience section.")
+        keywords = [k.strip().lower() for k in search_input.split(",") if k.strip()]
+        for data in st.session_state.all_data.values():
+            matches = [kw for kw in keywords if kw in data["experience"].lower()]
+            if matches:
+                st.success(f"✅ **{data['name']}** matched: {', '.join(matches)}")
+            else:
+                st.info(f"❌ **{data['name']}** matched: None")
