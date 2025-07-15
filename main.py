@@ -27,7 +27,7 @@ Resume:
     response = llm.invoke(prompt)
     return response
 
-# ✅ Improved Function to extract experience section
+# ✅ Function to extract raw Experience section and hide from UI
 def extract_job_history_section(resume_text):
     stop_headings = [
         'education', 'projects', 'certifications', 'skills',
@@ -40,7 +40,6 @@ def extract_job_history_section(resume_text):
     exp_start = None
     exp_end = None
 
-    # Find a proper heading like 'Experience' or 'Work Experience'
     for i, line in enumerate(clean_lines):
         line_lower = line.lower()
         if line_lower in ['experience', 'work experience', 'professional experience']:
@@ -60,8 +59,7 @@ def extract_job_history_section(resume_text):
 
     return "❌ Could not find 'Experience' section as a proper heading."
 
-
-# Streamlit UI
+# 🚀 Streamlit App
 st.set_page_config(page_title="📄 Resume Parser", layout="centered")
 st.title("📄 AI Resume Parser using Mistral")
 st.markdown("Upload a resume PDF, and let the AI extract key information.")
@@ -74,16 +72,8 @@ if uploaded_file is not None:
 
     st.success("✅ Resume text extracted!")
 
-    # Optional Debug (see headings) – uncomment if needed
-    # st.write("🪵 Possible Headings Found:")
-    # for line in resume_text.splitlines():
-    #     if line.strip() and len(line.strip().split()) <= 5 and line.strip().istitle():
-    #         st.write(f"👉 {line.strip()}")
-
-    # 🔍 Show raw Experience section
-    st.subheader("📜 Raw Experience Section from Resume")
-    experience_section = extract_job_history_section(resume_text)
-    st.text_area("🔍 Extracted Experience Section", experience_section, height=300)
+    # ✅ Store raw experience section (but don't display)
+    st.session_state.raw_experience = extract_job_history_section(resume_text)
 
     # 🧠 Parse with Mistral
     if st.button("🧠 Parse Resume with Mistral"):
@@ -92,3 +82,7 @@ if uploaded_file is not None:
 
         st.subheader("📋 Parsed Resume Data (JSON)")
         st.code(parsed_output, language="json")
+
+        # (Optional Debug – Print stored experience if needed)
+        # st.subheader("🔒 Hidden Raw Experience Stored in Session")
+        # st.text_area("Raw Experience", st.session_state.raw_experience, height=300)
